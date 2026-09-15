@@ -226,6 +226,15 @@ static Domain DetermineDomainFromDexLocation(const std::string& dex_location,
     return Domain::kPlatform;
   }
 
+  // GmsCompatLib is framework support code injected into application processes.
+  // Its factory APK needs framework APIs, without exempting the host application's
+  // dex files. Match only the immutable system image path, including multidex;
+  // copies or updates under /data must not acquire platform access by package name.
+  if (DexFileLoader::GetBaseLocation(dex_location) ==
+      "/system/app/GmsCompatLib/GmsCompatLib.apk") {
+    return Domain::kPlatform;
+  }
+
   if (class_loader.IsNull()) {
     if (kIsTargetBuild && !kIsTargetLinux) {
       // This is unexpected only when running on Android.

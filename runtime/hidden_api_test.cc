@@ -695,6 +695,33 @@ TEST_F(HiddenApiTest, DexDomain_DataDir) {
   TestLocation(data_location_path, hiddenapi::Domain::kApplication);
 }
 
+TEST_F(HiddenApiTest, DexDomain_GmsCompatLib) {
+  ScopedObjectAccess soa(Thread::Current());
+  ObjPtr<mirror::ClassLoader> loader = soa.Decode<mirror::ClassLoader>(jclass_loader_);
+  ASSERT_NE(loader, nullptr);
+  const std::pair<const char*, hiddenapi::Domain> cases[] = {
+      {"/system/app/GmsCompatLib/GmsCompatLib.apk", hiddenapi::Domain::kPlatform},
+      {"/system/app/GmsCompatLib/GmsCompatLib.apk!classes2.dex", hiddenapi::Domain::kPlatform},
+      {"/data/app/GmsCompatLib/GmsCompatLib.apk", hiddenapi::Domain::kApplication},
+      {"/system/app/GmsCompatLib/Other.apk", hiddenapi::Domain::kApplication},
+      {"/system/app/GmsCompatLib/GmsCompatLib.apk.other", hiddenapi::Domain::kApplication},
+      {"/system/app/Other/Other.apk", hiddenapi::Domain::kApplication},
+  };
+  for (const auto& [location, expected] : cases) {
+    // Use a real test dex with a synthetic location, avoiding writes to /system.
+    ArtDexFileLoader dex_loader(GetTestDexFileName("Main").c_str(), location);
+    std::vector<std::unique_ptr<const DexFile>> dex_files;
+    std::string error;
+    ASSERT_TRUE(dex_loader.Open(true, true, &error, &dex_files)) << error;
+    ASSERT_FALSE(dex_files.empty());
+    for (const auto& dex_file : dex_files) {
+      dex_file->SetHiddenapiDomain(hiddenapi::Domain::kApplication);
+      hiddenapi::InitializeDexFileDomain(*dex_file, loader);
+      EXPECT_EQ(dex_file->GetHiddenapiDomain(), expected) << location;
+    }
+  }
+}
+
 TEST_F(HiddenApiTest, DexDomain_SystemDir) {
   // Load file from a system, non-framework directory and check that it is not flagged as framework.
   std::string system_location_path = GetAndroidRoot() + "/foo.jar";
